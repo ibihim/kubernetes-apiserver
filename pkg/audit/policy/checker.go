@@ -17,6 +17,7 @@ limitations under the License.
 package policy
 
 import (
+	"fmt"
 	"strings"
 
 	"k8s.io/apiserver/pkg/apis/audit"
@@ -34,6 +35,83 @@ func NewPolicyRuleEvaluator(policy *audit.Policy) auditinternal.PolicyRuleEvalua
 	for i, rule := range policy.Rules {
 		policy.Rules[i].OmitStages = unionStages(policy.OmitStages, rule.OmitStages)
 	}
+
+	var b strings.Builder
+	b.WriteRune('\n')
+	b.WriteString("===============================================================")
+	b.WriteRune('\n')
+	b.WriteString("Rules:")
+	b.WriteRune('\n')
+	for _, rule := range policy.Rules {
+		b.WriteString("- Level: ")
+		b.WriteString(string(rule.Level))
+		b.WriteRune('\n')
+		b.WriteString("  Users:")
+		b.WriteRune('\n')
+		for _, user := range rule.Users {
+			b.WriteString("  - ")
+			b.WriteString(user)
+			b.WriteRune('\n')
+		}
+		b.WriteString("  UserGroups:")
+		b.WriteRune('\n')
+		for _, group := range rule.UserGroups {
+			b.WriteString("  - ")
+			b.WriteString(group)
+			b.WriteRune('\n')
+		}
+		b.WriteString("  Verbs:")
+		b.WriteRune('\n')
+		for _, verb := range rule.Verbs {
+			b.WriteString("  - ")
+			b.WriteString(verb)
+			b.WriteRune('\n')
+		}
+		b.WriteString("  Resources:")
+		b.WriteRune('\n')
+		for _, resource := range rule.Resources {
+			b.WriteString("  - Group: ")
+			b.WriteString(resource.Group)
+			b.WriteRune('\n')
+			b.WriteString("    Resources:")
+			b.WriteRune('\n')
+			for _, resource := range resource.Resources {
+				b.WriteString("    - ")
+				b.WriteString(resource)
+				b.WriteRune('\n')
+			}
+			b.WriteString("    ResourcesNames:")
+			b.WriteRune('\n')
+			for _, resource := range resource.ResourceNames {
+				b.WriteString("    - ")
+				b.WriteString(resource)
+				b.WriteRune('\n')
+			}
+		}
+		b.WriteString("  Namespaces:")
+		b.WriteRune('\n')
+		for _, namespace := range rule.Namespaces {
+			b.WriteString("  - ")
+			b.WriteString(namespace)
+			b.WriteRune('\n')
+		}
+		b.WriteString("  OmitStages:")
+		b.WriteRune('\n')
+		for _, stage := range rule.OmitStages {
+			b.WriteString("  - ")
+			b.WriteString(string(stage))
+			b.WriteRune('\n')
+		}
+		b.WriteString("  OmitManagedFields:")
+		b.WriteString(fmt.Sprintf("%t", *rule.OmitManagedFields))
+		b.WriteRune('\n')
+	}
+	b.WriteRune('\n')
+	b.WriteString("===============================================================")
+	b.WriteRune('\n')
+
+	fmt.Println(b.String())
+
 	return &policyRuleEvaluator{*policy}
 }
 
@@ -62,6 +140,37 @@ type policyRuleEvaluator struct {
 }
 
 func (p *policyRuleEvaluator) EvaluatePolicyRule(attrs authorizer.Attributes) auditinternal.RequestAuditConfigWithLevel {
+	fmt.Printf(`
+
+===============================================================
+	attrs:
+		User: %s
+		Verb: %s
+		IsReadOnly: %t
+		Namespace: %s
+		Resource: %s
+		Subresource: %s
+		Name: %s
+		APIGroup: %s
+		APIVersion: %s
+		IsResourceRequest: %t
+		Path: %s
+===============================================================
+
+	`,
+		attrs.GetUser(),
+		attrs.GetVerb(),
+		attrs.IsReadOnly(),
+		attrs.GetNamespace(),
+		attrs.GetResource(),
+		attrs.GetSubresource(),
+		attrs.GetName(),
+		attrs.GetAPIGroup(),
+		attrs.GetAPIVersion(),
+		attrs.IsResourceRequest(),
+		attrs.GetPath(),
+	)
+
 	for _, rule := range p.Rules {
 		if ruleMatches(&rule, attrs) {
 			return auditinternal.RequestAuditConfigWithLevel{
